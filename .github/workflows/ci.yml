@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  unit-tests:
+    name: Unit tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025, macos-15]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.x'
+      - run: npm ci
+        shell: bash
+
+      - run: npx jest
+        shell: bash
+
+
+  check-dist:
+    name: Check dist/ is up-to-date
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.x'
+      - run: npm ci
+      - run: npm run pack
+      - name: Verify dist/ has no uncommitted changes
+        run: |
+          if ! git diff --exit-code -- dist; then
+            echo "::error::dist/ is out of date. Run 'npm run pack' and commit the result."
+            exit 1
+          fi
+
+  integration-test:
+    name: Integration test (${{ matrix.os }})
+    needs: 
+      - unit-tests
+      - check-dist
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, windows-2025, windows-11-arm, macos-15, macos-15-intel]
+    steps:
+      - uses: actions/checkout@v6
+      - id: setup-hylo
+        uses: ./
+        with:
+          version: v0.0.2
+      - name: Inspect hc.exe dynamic dependencies (Windows)
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $hc = (Get-Command hc.exe -ErrorAction SilentlyContinue).Source
+          if (-not $hc) {
+            Write-Host "hc.exe not found on PATH"
+            exit 0
+          }
+          Write-Host "hc.exe resolved to: $hc"
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) {
+            Write-Host "vswhere.exe not found at $vswhere; skipping dumpbin."
+            exit 0
+          }
+          $dumpbin = & $vswhere -latest -products * -find "VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe" | Select-Object -First 1
+          if (-not $dumpbin) {
+            Write-Host "dumpbin.exe not found via vswhere; skipping."
+            exit 0
+          }
+          Write-Host "Using dumpbin: $dumpbin"
+          & $dumpbin /dependents $hc
+      - name: Run 'hc --help'
+        run: hc --help
+        shell: bash
+      - name: Verify hyloToolchainRootDirectory output is set
+        shell: bash
+        run: |
+          if [ -z "${{ steps.setup-hylo.outputs.hyloToolchainRootDirectory }}" ]; then
+            echo "::error::hyloToolchainRootDirectory output is empty"
+            exit 1
+          fi
+          echo "Toolchain root: ${{ steps.setup-hylo.outputs.hyloToolchainRootDirectory }}"

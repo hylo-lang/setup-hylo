@@ -9,9 +9,9 @@ module.exports = {
   },
   verbose: true,
   collectCoverage: true,
-  coveragePathIgnorePatterns: ["<rootDir>/build/", "<rootDir>/node_modules/", "<rootDir>/__tests__", "__tests__"],
+  coveragePathIgnorePatterns: ["<rootDir>/build/", "<rootDir>/node_modules/", "<rootDir>/tests", "<rootDir>/dist"],
   collectCoverageFrom: [
-    "src/get-llvm.ts",
+    "src/**",
     "!**/node_modules/**",
     "!**/build/**",
     "!**/dist/**"
