@@ -14,7 +14,7 @@ toolchain at an explicit release tag and prepends the `hc` compiler to `PATH`.
 ```yaml
 - uses: hylo-lang/setup-hylo@v1.0.0
   with:
-    version: v0.0.1
+    version: v0.0.2
 ```
 
 An explicit release tag is required; `latest` is not supported.
